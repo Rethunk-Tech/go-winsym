@@ -39,9 +39,12 @@ func main() {
 	}
 	fmt.Printf("exception %#x in %s +%#x\n", fault.Code, fault.Module, fault.Offset)
 
-	// A Resolver downloads into Dir, which it must own. With no Wait set it
-	// answers from the cache or not at all, so this example does no network I/O.
-	r := &winsym.Resolver{Dir: filepath.Join(os.TempDir(), "winsym-symbols")}
+	// A Resolver downloads into Dir, which it must own. Offline it reads only
+	// what is already cached, so this example does no network I/O.
+	r := &winsym.Resolver{
+		Dir:    filepath.Join(os.TempDir(), "winsym-symbols"),
+		Online: func() bool { return false },
+	}
 	if name, off, ok := r.Name(context.Background(), fault.CodeView, fault.Offset); ok {
 		fmt.Printf("%s +%#x\n", name, off)
 	}
