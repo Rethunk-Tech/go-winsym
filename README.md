@@ -11,8 +11,7 @@
 
 Symbol resolution for native Windows crashes: read minidumps, find PDBs on symbol servers and name the function an address lies in. Package `winsym`, module `github.com/Rethunk-Tech/go-winsym`.
 
-<!-- scaffold: one short paragraph on what the package guarantees and why it exists, in plain
-words. -->
+It works without dbghelp or Windows, on files and servers it does not trust, using only the standard library. Every format it reads is Microsoft's and documented.
 
 ## Quick start
 
@@ -24,7 +23,11 @@ A worked example and the contracts: [HUMANS.md](HUMANS.md).
 
 ## Features
 
-<!-- scaffold: 3 to 6 bullets, each a capability a caller can rely on. No roadmap. -->
+- Minidump reader: exception code, address, faulting module and offset, and the module's CodeView record.
+- CodeView from a PE file on disk, with the symbol-store key for its PDB.
+- PDB lookup: the public function at or below an address, partly undecorated.
+- Symbol-server fetch into a size-capped cache in the standard symbol-store layout, downloaded once however many callers wait.
+- Server lists you choose, so a module's name goes only to servers that publish it.
 
 ## Documentation
 
