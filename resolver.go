@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -208,9 +209,14 @@ func (r *Resolver) prune() {
 		size int64
 		used time.Time
 	}
+	root, err := os.OpenRoot(r.Dir)
+	if err != nil {
+		return
+	}
+	defer func() { _ = root.Close() }()
 	var all []entry
 	var total int64
-	_ = filepath.WalkDir(r.Dir, func(p string, d os.DirEntry, err error) error {
+	_ = fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -219,7 +225,7 @@ func (r *Resolver) prune() {
 		}
 		if strings.HasSuffix(p, ".pdb.part") {
 			if info, err := d.Info(); err == nil && time.Since(info.ModTime()) > partMaxAge {
-				_ = os.Remove(p)
+				_ = root.Remove(p)
 			}
 			return nil
 		}
@@ -242,7 +248,7 @@ func (r *Resolver) prune() {
 		if total <= limit {
 			return
 		}
-		if os.Remove(e.path) == nil {
+		if root.Remove(e.path) == nil {
 			total -= e.size
 		}
 	}
