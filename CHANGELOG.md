@@ -12,5 +12,6 @@ Notable changes to `go-winsym`. The format follows
 - `PECodeView` reads the PDB name, GUID and age a PE file records, and `CodeView.Key` gives the symbol-store folder for them.
 - `Server` and `DefaultServers` describe which symbol servers are asked for which PDB names.
 - `Resolver.Name` fetches a PDB once into a size-capped, symbol-store-layout cache and names the function an address lies in, retrying on Windows while a scanner holds the file.
+- `ParseMinidump` reads the exception code, address, faulting module path, offset and CodeView record from a Windows minidump without dbghelp.
 
 [Unreleased]: https://github.com/Rethunk-Tech/go-winsym/commits/main
