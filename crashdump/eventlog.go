@@ -37,7 +37,12 @@ func EventLog(ctx context.Context, exes []string, since time.Time) []Fault {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
-	path, err := exec.LookPath("wevtutil")
+	return eventLog(ctx, "wevtutil", exes, since)
+}
+
+// eventLog is EventLog with the program named, so a test can stand a script in for wevtutil.
+func eventLog(ctx context.Context, program string, exes []string, since time.Time) []Fault {
+	path, err := exec.LookPath(program)
 	if err != nil {
 		return nil
 	}
