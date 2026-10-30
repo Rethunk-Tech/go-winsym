@@ -5,9 +5,9 @@ Package `winsym` resolves native Windows crashes to function names: it reads a m
 ## Gate
 
 `gate` is the command. Each override in `.gate.toml` is there because a runner
-cannot resolve that check from PATH. The `windows-latest` test job is the only place
-Windows-only behaviour runs.
-`retry_windows_test.go` is the only OS-specific test file: it drives the sharing-violation retry. Everything else, including the cache's rename and delete behaviour, runs the same tests on both OSes, and the Windows job is where a just-closed or still-open file differs.
+cannot resolve that check from PATH.
+
+`retry_windows_test.go`, which drives the sharing-violation retry, runs only in the `windows-latest` job. Every other test, the cache's rename and delete included, runs on both OSes, and the Windows job is where a just-closed or still-open file differs.
 
 ## Shape
 
@@ -18,8 +18,8 @@ Windows-only behaviour runs.
 - The cache layout `<Dir>/<pdb>/<key>/<pdb>`, the `<pdb>.part` temp name and the empty `miss` marker are the standard symbol-store layout and a stored format: other tools read the folder and old caches stay valid. A miss is recorded only when every asked server answered 404, so a network failure retries on the next call.
 - `retry` wraps only the final rename and the `.part` removal. A scanner that holds a just-written file makes both fail with `ERROR_ACCESS_DENIED`, `ERROR_SHARING_VIOLATION` or `ERROR_LOCK_VIOLATION`; without the retry the next URL's attempt fails on the same leftover `.part` and no miss is recorded, so the work repeats on every call. `prune` uses plain removal because a failed delete only defers to the next prune. `os.Root.Rename` does not avoid the hold.
 - Fetches are shared per PDB path, and a download outlives a caller that stopped waiting (`context.WithoutCancel`), so the next call finds the file.
-- Size caps are policy and unexported: one download is capped on bytes read rather than `Content-Length` alone, and `MaxCacheBytes` is the one consumer-set bound. `Dir` belongs to one `Resolver`, since `prune` deletes by suffix.
-- `Lookup` is exported as the network-free primitive; `undecorate` handles plain, `??0` and `??1` names and returns every other form as stored.
+- Size caps are policy and unexported: one download is capped on bytes read rather than `Content-Length` alone, and `MaxCacheBytes` is the one caller-set bound.
+- `Lookup` is exported as the network-free primitive.
 
 ## Files
 

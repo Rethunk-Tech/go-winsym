@@ -53,7 +53,7 @@ func main() {
 
 ## Contracts
 
-| Entry point | Contract |
+| Behaviour | Contract |
 | --- | --- |
 | `ParseMinidump` | Returns an error for a non-dump, a truncated one or one without exception and module streams; never panics. `Module` is the path as the dump records it, empty when no listed module holds the address. |
 | `Fault.CodeView`, `PECodeView` | Zero when no valid record exists. A non-empty `PDB` is a base name matching `^[A-Za-z0-9_.-]+\.pdb$`. |

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	// maxPDBBytes bounds one download; a player's PDB is tens of megabytes.
+	// maxPDBBytes bounds one download.
 	maxPDBBytes = 512 << 20
 	// defaultCacheBytes bounds the cache folder when Resolver.MaxCacheBytes is zero.
 	defaultCacheBytes = 2 << 30
@@ -34,7 +34,7 @@ var errMissing = errors.New("the symbol server has no such PDB")
 // built, so a PDB placed in Dir by hand for a module no Server serves is never read; use Lookup, or add a Server, for
 // those.
 type Resolver struct {
-	// Dir must belong to this Resolver alone: prune deletes every *.pdb under it, least recently modified first,
+	// Dir must belong to this Resolver alone: prune deletes every *.pdb under it, least recently read first,
 	// and every *.pdb.part older than an hour, whoever wrote them.
 	Dir string
 	// HTTP is the client for downloads; nil means http.DefaultClient. Each download also carries a 10-minute context.

@@ -109,7 +109,7 @@ type Server struct {
 
 var (
 	unityPrefixes = []string{"unityplayer_", "windowsplayer_", "baselib_"}
-	// microsoftNames are the system and runtime PDBs a crash in a Windows game process passes through.
+	// microsoftNames are the system and runtime PDBs a crash in a Windows process passes through.
 	microsoftNames = []string{
 		"ntdll.pdb", "kernelbase.pdb", "kernel32.pdb", "ucrtbase.pdb", "vcruntime140.amd64.pdb",
 		"vcruntime140_1.amd64.pdb", "msvcp140.amd64.pdb", "user32.pdb", "win32u.pdb", "d3d11.pdb", "dxgi.pdb",
@@ -125,7 +125,7 @@ func servesMicrosoft(pdb string) bool { return slices.Contains(microsoftNames, p
 
 // DefaultServers is Unity's symbol server (https, then http: Unity documents only the http address) for
 // unityplayer_, windowsplayer_ and baselib_ PDBs, and Microsoft's for the system and runtime PDBs a crash in a Windows
-// game process passes through. A PDB no listed server publishes is never requested, so a private module's name does
+// process passes through. A PDB no listed server publishes is never requested, so a private module's name does
 // not reach a third party. Each call returns a fresh slice.
 func DefaultServers() []Server {
 	return []Server{
