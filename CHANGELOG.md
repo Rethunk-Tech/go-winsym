@@ -6,4 +6,8 @@ Notable changes to `go-winsym`. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Lookup` names the public function at or below an address in a Windows PDB read from any `io.ReaderAt`.
+
 [Unreleased]: https://github.com/Rethunk-Tech/go-winsym/commits/main
