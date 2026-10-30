@@ -6,6 +6,8 @@ Notable changes to `go-winsym`. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-29
+
 ### Added
 
 - `Lookup` names the public function at or below an address in a Windows PDB read from any `io.ReaderAt`.
@@ -14,4 +16,5 @@ Notable changes to `go-winsym`. The format follows
 - `Resolver.Name` fetches a PDB once into a size-capped, symbol-store-layout cache and names the function an address lies in, retrying on Windows while a scanner holds the file.
 - `ParseMinidump` reads the exception code, address, faulting module path, offset and CodeView record from a Windows minidump without dbghelp.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-winsym/commits/main
+[Unreleased]: https://github.com/Rethunk-Tech/go-winsym/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Rethunk-Tech/go-winsym/releases/tag/v0.1.0
