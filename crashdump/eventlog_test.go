@@ -2,8 +2,11 @@ package crashdump
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 const eventsXML = `<Events>
@@ -69,5 +72,29 @@ func TestEventLogReadsRealWevtutilOutput(t *testing.T) {
 	}
 	if got := ParseEventLog(raw, []string{"Other.exe"}); len(got) != 0 {
 		t.Errorf("another exe's events were kept: %+v", got)
+	}
+}
+
+// fakeBin writes an executable shell script named name into a fresh folder and returns its path.
+func fakeBin(t *testing.T, name, script string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+script), 0o700); err != nil { //nolint:gosec // G306: the test script must be executable
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestEventLogParsesWhatTheProgramPrints(t *testing.T) {
+	since := time.Now()
+	bin := fakeBin(t, "wevtutil", "cat "+filepath.Join("testdata", "wevtutil-win11.xml")+"\n")
+	if got := eventLog(t.Context(), bin, []string{"CrashTest.exe"}, since); len(got) != 2 {
+		t.Fatalf("got %+v", got)
+	}
+	if got := eventLog(t.Context(), filepath.Join(t.TempDir(), "absent"), []string{"CrashTest.exe"}, since); got != nil {
+		t.Fatalf("a missing program gave %+v", got)
+	}
+	if got := EventLog(t.Context(), []string{"x.exe"}, since); runtime.GOOS != "windows" && got != nil {
+		t.Fatalf("faults off Windows: %+v", got)
 	}
 }
