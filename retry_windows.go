@@ -12,18 +12,17 @@ const (
 	errLockViolation    syscall.Errno = 33 // ERROR_LOCK_VIOLATION
 )
 
-// retry runs op again for about two seconds, doubling the wait from 1 ms, while it fails because another process holds
-// the file open. Defender or the search indexer scans a file just written; renaming or deleting it then fails until
-// they let go, and giving up would waste the download and repeat it on the next call.
+// retry runs op again, doubling the wait from 1 ms, while it fails because another process holds the file open and
+// the next wait would still end within two seconds. Defender or the search indexer scans a file just written; renaming
+// or deleting it then fails until they let go, and giving up would waste the download and repeat it on the next call.
 func retry(op func() error) error {
-	wait := time.Millisecond
-	var err error
-	for elapsed := time.Duration(0); ; elapsed += wait {
-		if err = op(); !held(err) || elapsed >= 2*time.Second {
+	start := time.Now()
+	for wait := time.Millisecond; ; wait *= 2 {
+		err := op()
+		if !held(err) || time.Since(start)+wait > 2*time.Second {
 			return err
 		}
 		time.Sleep(wait)
-		wait *= 2
 	}
 }
 
