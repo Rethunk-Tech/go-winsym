@@ -6,6 +6,13 @@ Notable changes to `go-winsym`. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `crashdump.Windows` finds the minidumps Windows Error Reporting and Unity crash folders left for a game's executables, and `crashdump.ReadDump` reads one.
+- `crashdump.EventLog` and `ParseEventLog` read Application Error and .NET unhandled-exception faults from the Windows event log.
+- `crashdump.Coredump` and `ParseCoredumpInfo` read a systemd core dump report, and `ParseUnityErrorLog` a Unity `error.log`.
+- `crashdump.Fault` names the module, offset, exception code, time, dump path and source of a crash.
+
 ## [0.1.0] - 2026-10-29
 
 ### Added

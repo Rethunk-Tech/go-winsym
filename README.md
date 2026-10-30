@@ -27,6 +27,7 @@ A worked example and the contracts: [HUMANS.md](HUMANS.md).
 - CodeView from a PE file on disk, with the symbol-store key for its PDB.
 - PDB lookup: the public function at or below an address, partly undecorated.
 - Symbol-server fetch into a size-capped cache in the standard symbol-store layout, downloaded once however many callers wait.
+- Crash discovery (`crashdump`): the minidumps WER and Unity crash folders leave, Application Error and .NET faults from the Windows event log, and systemd core dumps, each as one `Fault` naming the module, offset and exception.
 - Server lists you choose, so a module's name goes only to servers that publish it.
 
 ## Documentation

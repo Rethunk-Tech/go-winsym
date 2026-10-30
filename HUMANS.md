@@ -67,6 +67,17 @@ func main() {
 | Download and cache size | One download is capped, and the cache is held under `MaxCacheBytes` by dropping the least recently read PDBs. |
 | Download wait | `Name` waits at most `Wait` or its context; the download continues for the next call. |
 
+### crashdump
+
+| Behaviour | Contract |
+| --- | --- |
+| `crashdump.Windows` | Reads WER dumps named for an exe (`<stem>*.dmp` in the folder given) and Unity `Crashes/Crash_*` folders under a temp folder, only those modified after `since`. An exe name with a path in it is ignored. A Unity `error.log` names the module; the `crash.dmp` beside it adds code, offset and CodeView when it names the same module. |
+| `crashdump.ReadDump` | `ok` is false for a missing file, one over 4 GiB or a non-minidump. |
+| `crashdump.EventLog` | Application Error 1000 and .NET Runtime 1026 events for the exes, newest 20, through `wevtutil` with a 10 s timeout; nil on other systems or when it is missing or refused. |
+| `crashdump.Coredump` | `coredumpctl info` for a command since a time; `ok` is false when it is missing, holds no dump or refuses. Never asks for root. |
+| `ParseEventLog`, `ParseUnityErrorLog`, `ParseCoredumpInfo` | Pure and never panic; system libraries are skipped when naming a module. A cut-off event stream yields the events before the cut. |
+| `Fault` | `Source`, `Path` and `Time` say where it came from; fields a source lacks stay zero. |
+
 ## Requirements
 
 Go 1.27.3 or newer, plus `lefthook` and `gitleaks` on PATH if you want the git hooks.
