@@ -6,6 +6,8 @@ Notable changes to `go-winsym`. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-30
+
 ### Added
 
 - `crashdump.Windows` finds the minidumps Windows Error Reporting and Unity crash folders left for a game's executables, and `crashdump.ReadDump` reads one.
@@ -23,5 +25,6 @@ Notable changes to `go-winsym`. The format follows
 - `Resolver.Name` fetches a PDB once into a size-capped, symbol-store-layout cache and names the function an address lies in, retrying on Windows while a scanner holds the file.
 - `ParseMinidump` reads the exception code, address, faulting module path, offset and CodeView record from a Windows minidump without dbghelp.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-winsym/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Rethunk-Tech/go-winsym/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Rethunk-Tech/go-winsym/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Rethunk-Tech/go-winsym/releases/tag/v0.1.0
