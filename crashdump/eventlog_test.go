@@ -86,6 +86,9 @@ func fakeBin(t *testing.T, name, script string) string {
 }
 
 func TestEventLogParsesWhatTheProgramPrints(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in program is a shell script")
+	}
 	since := time.Now()
 	bin := fakeBin(t, "wevtutil", "cat "+filepath.Join("testdata", "wevtutil-win11.xml")+"\n")
 	if got := eventLog(t.Context(), bin, []string{"CrashTest.exe"}, since); len(got) != 2 {

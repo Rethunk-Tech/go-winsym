@@ -2,11 +2,15 @@ package crashdump
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestCoredump(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in program is a shell script")
+	}
 	since := time.Now()
 	t.Setenv("PATH", t.TempDir())
 	if _, ok := Coredump(t.Context(), "Game", since); ok {
