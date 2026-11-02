@@ -27,6 +27,6 @@ func retry(op func() error) error {
 }
 
 func held(err error) bool {
-	var errno syscall.Errno
-	return errors.As(err, &errno) && (errno == errAccessDenied || errno == errSharingViolation || errno == errLockViolation)
+	errno, ok := errors.AsType[syscall.Errno](err)
+	return ok && (errno == errAccessDenied || errno == errSharingViolation || errno == errLockViolation)
 }
