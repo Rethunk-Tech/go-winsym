@@ -1,7 +1,6 @@
 package winsym
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -52,20 +51,20 @@ func TestResolverFetchesOnceAndCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if name, off, ok := r.Name(context.Background(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" || off != 0x1c {
+		if name, off, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" || off != 0x1c {
 			t.Fatalf("%q +%#x %v", name, off, ok)
 		}
 	}
 	other := cv
 	other.Age = 2
 	for range 2 {
-		if _, _, ok := r.Name(context.Background(), other, 0x101c); ok {
+		if _, _, ok := r.Name(t.Context(), other, 0x101c); ok {
 			t.Fatal("a PDB the server lacks named a symbol")
 		}
 	}
 	online = false
 	other.Age = 3
-	if _, _, ok := r.Name(context.Background(), other, 0x101c); ok || requests.Load() != 2 {
+	if _, _, ok := r.Name(t.Context(), other, 0x101c); ok || requests.Load() != 2 {
 		t.Fatalf("requests = %d, want one for the PDB and one for the miss", requests.Load())
 	}
 }
@@ -77,7 +76,7 @@ func TestResolverWithNoHTTPClientUsesTheDefault(t *testing.T) {
 	var requests atomic.Int32
 	srv := servePDB(t, cv, &requests)
 	r := &Resolver{Dir: t.TempDir(), Servers: []Server{{URL: srv.URL + "/"}}, Wait: 10 * time.Second}
-	if name, _, ok := r.Name(context.Background(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
+	if name, _, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
 		t.Fatalf("%q %v", name, ok)
 	}
 }
@@ -96,7 +95,7 @@ func TestResolverIgnoresAPDBNoServerServes(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, cv.PDB), fixturePDBBytes(t), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, ok := r.Name(context.Background(), cv, 0x101c); ok || requests.Load() != 0 {
+	if _, _, ok := r.Name(t.Context(), cv, 0x101c); ok || requests.Load() != 0 {
 		t.Fatalf("ok = %v after %d requests", ok, requests.Load())
 	}
 }
