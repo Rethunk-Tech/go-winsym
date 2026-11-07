@@ -6,6 +6,11 @@ Notable changes to `go-winsym`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A `Resolver` downloads at most two PDBs at once, so a run over many dumps does not hold gigabytes of partial files.
+- The default download client refuses a redirect from https to http.
+
 ## [0.2.0] - 2026-10-30
 
 ### Added

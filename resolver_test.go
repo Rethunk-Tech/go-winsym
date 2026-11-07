@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -167,5 +169,95 @@ func TestPruneEvictsTheOldestPDBOverTheCap(t *testing.T) {
 	}
 	if _, err := os.Stat(newer); err != nil {
 		t.Errorf("newer PDB removed: %v", err)
+	}
+}
+
+// Downloads of different PDBs run at most maxDownloads at a time.
+func TestDownloadsAreCapped(t *testing.T) {
+	t.Parallel()
+	var running, peak atomic.Int32
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := running.Add(1)
+		defer running.Add(-1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		<-release
+		http.NotFound(w, nil)
+	}))
+	t.Cleanup(srv.Close)
+	r := &Resolver{HTTP: srv.Client(), Dir: t.TempDir(), Servers: []Server{{URL: srv.URL + "/"}}}
+	var wg sync.WaitGroup
+	for i := range 3 * maxDownloads {
+		name := "m" + strconv.Itoa(i) + ".pdb"
+		wg.Go(func() {
+			<-r.fetch(t.Context(), filepath.Join(r.Dir, name, "k"), name, []string{srv.URL + "/" + name})
+		})
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for running.Load() < maxDownloads && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Give any download past the cap time to show itself.
+	time.Sleep(200 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	if got := peak.Load(); got != maxDownloads {
+		t.Fatalf("%d downloads ran at once, want %d", got, maxDownloads)
+	}
+}
+
+func TestRedirectsNeverLeaveHTTPS(t *testing.T) {
+	t.Parallel()
+	get := func(url string) *http.Request {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return req
+	}
+	if err := refuseDowngrade(get("http://symbols.example/x"), []*http.Request{get("https://symbols.example/x")}); err == nil {
+		t.Error("a redirect from https to http was followed")
+	}
+	if err := refuseDowngrade(get("https://other.example/x"), []*http.Request{get("https://symbols.example/x")}); err != nil {
+		t.Errorf("an https redirect: %v", err)
+	}
+	if err := refuseDowngrade(get("http://b.example/x"), []*http.Request{get("http://a.example/x")}); err != nil {
+		t.Errorf("an http redirect from http: %v", err)
+	}
+	if defaultClient.CheckRedirect == nil {
+		t.Error("the default client follows every redirect")
+	}
+}
+
+// A symlink in the cache pointing outside it is neither read nor touched.
+func TestNameLeavesASymlinkTargetAlone(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	outside := filepath.Join(t.TempDir(), "outside.pdb")
+	if err := os.WriteFile(outside, fixturePDBBytes(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(outside, old, old); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{Dir: t.TempDir(), Servers: []Server{{URL: "http://127.0.0.1:1/"}}, Online: func() bool { return false }}
+	dir := filepath.Join(r.Dir, cv.PDB, cv.Key())
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, cv.PDB)); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	if _, _, ok := r.Name(t.Context(), cv, 0x101c); ok {
+		t.Fatal("read through a symlink out of the cache")
+	}
+	if info, err := os.Stat(outside); err != nil || !info.ModTime().Equal(old) {
+		t.Fatalf("the target was touched: %v %v", info.ModTime(), err)
 	}
 }

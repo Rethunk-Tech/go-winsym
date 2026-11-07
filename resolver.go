@@ -23,6 +23,9 @@ const (
 	missMarker        = "miss"
 	// partMaxAge is how long a .part may sit before prune treats it as abandoned (a download is capped at 10 minutes).
 	partMaxAge = time.Hour
+	// maxDownloads is how many PDBs one Resolver downloads at once, so a run over many dumps cannot hold gigabytes of
+	// partial files at the same time.
+	maxDownloads = 2
 	// missMaxAge is how long a miss marker stands before the server is asked again (a symbol server may publish later).
 	missMaxAge = 7 * 24 * time.Hour
 )
@@ -37,7 +40,7 @@ type Resolver struct {
 	// Dir must belong to this Resolver alone: prune deletes every *.pdb under it, least recently read first,
 	// and every *.pdb.part older than an hour, whoever wrote them.
 	Dir string
-	// HTTP is the client for downloads; nil means http.DefaultClient. Each download also carries a 10-minute context.
+	// HTTP is the client for downloads; nil means a default client that refuses a redirect from https to http. Each download also carries a 10-minute context.
 	HTTP *http.Client
 	// Servers are asked in order; nil means DefaultServers().
 	Servers []Server
@@ -51,6 +54,7 @@ type Resolver struct {
 
 	mu       sync.Mutex
 	inflight map[string]chan struct{}
+	slots    chan struct{}
 }
 
 // Name is the public symbol the address rva of the module cv identifies lies in and the offset into it, such as
@@ -94,6 +98,19 @@ func (r *Resolver) Name(ctx context.Context, cv CodeView, rva uint64) (name stri
 	return sym, off, err == nil
 }
 
+// defaultClient follows redirects but not from https to http, which would send the module's name in the clear.
+var defaultClient = &http.Client{CheckRedirect: refuseDowngrade}
+
+func refuseDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if req.URL.Scheme != "https" && via[len(via)-1].URL.Scheme == "https" {
+		return fmt.Errorf("%s: redirected from https to %s", via[0].URL.Redacted(), req.URL.Scheme)
+	}
+	return nil
+}
+
 func isFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
@@ -107,12 +124,14 @@ func (r *Resolver) fetch(ctx context.Context, dir, pdb string, urls []string) ch
 	defer r.mu.Unlock()
 	if r.inflight == nil {
 		r.inflight = map[string]chan struct{}{}
+		r.slots = make(chan struct{}, maxDownloads)
 	}
 	if done, ok := r.inflight[path]; ok {
 		return done
 	}
 	done := make(chan struct{})
 	r.inflight[path] = done
+	slots := r.slots
 	go func() {
 		defer func() {
 			r.mu.Lock()
@@ -120,6 +139,8 @@ func (r *Resolver) fetch(ctx context.Context, dir, pdb string, urls []string) ch
 			r.mu.Unlock()
 			close(done)
 		}()
+		slots <- struct{}{}
+		defer func() { <-slots }()
 		r.download(ctx, dir, pdb, urls)
 	}()
 	return done
@@ -165,7 +186,7 @@ func (r *Resolver) get(ctx context.Context, root *os.Root, url, pdb string) erro
 	}
 	client := r.HTTP
 	if client == nil {
-		client = http.DefaultClient
+		client = defaultClient
 	}
 	resp, err := client.Do(req)
 	if err != nil {

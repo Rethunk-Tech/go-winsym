@@ -26,4 +26,5 @@ Please do not open a public issue for a suspected vulnerability first.
 - The caller chooses the paths it hands `PECodeView`, the `Dir` a `Resolver` owns and the `Servers` it trusts; a `Server` list that names a hostile host is a configuration choice. A server on plain http can serve a wrong PDB; the cache is not authenticated, and a wrong PDB yields a wrong name, never code execution.
 - Names returned from a PDB are text from the input and are the caller's to display safely.
 - A hand-placed file in `Dir` for a module no server serves is ignored by design.
-- Time spent on the network and disk by a slow server is bounded by the download timeout and `Wait`, not by a rate limit.
+- Time spent on the network by a slow server is bounded by the download timeout and `Wait`, and a `Resolver` runs at most two downloads at once; there is no rate limit.
+- The default Unity server list keeps Unity's plain-http address as a fallback, so an observer on the path can see a module's PDB name; the default client does not follow a redirect from https to http.
