@@ -7,24 +7,40 @@ import (
 	"testing"
 )
 
-// FuzzWindowsPDB feeds a PDB as a symbol server, or anyone on the path of its plain-http address, could answer, and a
-// CodeView record as a crash dump carries it.
-func FuzzWindowsPDB(f *testing.F) {
+func FuzzLookup(f *testing.F) {
 	pdb, err := os.ReadFile(filepath.Join("testdata", "msf-publics.pdb"))
 	if err != nil {
 		f.Fatal(err)
 	}
 	f.Add(pdb, uint64(0x101c))
-	f.Add(pdb[:len(pdb)/3], uint64(0x1050))
-	f.Add([]byte("RSDS0123456789abcdef\x01\x00\x00\x00C:\\x\\ntdll.pdb\x00"), uint64(0))
+	f.Add(pdb, uint64(0x1050))
+	f.Add(pdb, uint64(0x10))
+	f.Add([]byte{}, uint64(0))
+	f.Add([]byte(msfMagic), uint64(0))
 	f.Fuzz(func(t *testing.T, data []byte, rva uint64) {
 		_, _, _ = Lookup(bytes.NewReader(data), int64(len(data)), rva)
-		cv, ok := parseCodeView(data)
+	})
+}
+
+func FuzzPECodeView(f *testing.F) {
+	dll, err := os.ReadFile(filepath.Join("testdata", "pe-codeview.dll"))
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(dll)
+	f.Add([]byte{})
+	f.Add([]byte("MZ"))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		p := filepath.Join(t.TempDir(), "x")
+		if err := os.WriteFile(p, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cv, ok := PECodeView(p)
 		if ok && !pdbName.MatchString(cv.PDB) {
 			t.Fatalf("PDB name %q would leave the cache folder", cv.PDB)
 		}
 		if !ok && cv != (CodeView{}) {
-			t.Fatalf("a rejected record left %+v", cv)
+			t.Fatalf("failed parse returned %+v", cv)
 		}
 	})
 }

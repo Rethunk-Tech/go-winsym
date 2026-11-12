@@ -35,7 +35,11 @@ func firstFrame(text string, frame *regexp.Regexp) (Fault, bool) {
 		if m == nil || systemModules[strings.ToLower(strings.TrimSuffix(m[1], ".dll"))] || systemModules[m[1]] {
 			continue
 		}
-		fault := Fault{Module: baseName(m[1])}
+		name := baseName(m[1])
+		if name == "" {
+			continue
+		}
+		fault := Fault{Module: name}
 		if e := exception.FindString(text); e != "" {
 			fault.Detail = strings.TrimSpace(e)
 		}
