@@ -101,3 +101,14 @@ func TestEventLogParsesWhatTheProgramPrints(t *testing.T) {
 		t.Fatalf("faults off Windows: %+v", got)
 	}
 }
+
+func TestEventQueryNarrowsToTheGameAndKeepsUnsafeNamesOut(t *testing.T) {
+	t.Parallel()
+	q := eventQuery([]string{"Cat Mail Co.exe", "bad'name.exe"}, time.Unix(0, 0))
+	if !strings.Contains(q, "EventData[Data[contains(.,'Cat Mail Co.exe')]]") || strings.Contains(q, "bad") {
+		t.Fatalf("query = %s", q)
+	}
+	if q := eventQuery([]string{"bad'name.exe"}, time.Unix(0, 0)); strings.Contains(q, "EventData") {
+		t.Fatalf("no safe name must not narrow: %s", q)
+	}
+}

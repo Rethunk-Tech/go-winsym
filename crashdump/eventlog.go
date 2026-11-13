@@ -40,6 +40,27 @@ func EventLog(ctx context.Context, exes []string, since time.Time) []Fault {
 	return eventLog(ctx, "wevtutil", exes, since)
 }
 
+// safeExe is an exe name that can sit inside a single-quoted XPath string.
+var safeExe = regexp.MustCompile(`^[A-Za-z0-9_. -]+$`)
+
+// eventQuery selects the two crash providers since `since`, narrowed to events whose data names one of exes, so other
+// programs' crashes do not fill the /c cap. Names that are not safe in an XPath literal are left out of the narrowing;
+// with none left the query is not narrowed.
+func eventQuery(exes []string, since time.Time) string {
+	q := fmt.Sprintf("*[System[(Provider[@Name='%s'] or Provider[@Name='%s']) and TimeCreated[@SystemTime>='%s']]",
+		runtimeProvider, appErrorProvider, since.UTC().Format("2006-01-02T15:04:05.000Z"))
+	var names []string
+	for _, e := range exes {
+		if safeExe.MatchString(e) {
+			names = append(names, fmt.Sprintf("contains(.,'%s')", e))
+		}
+	}
+	if len(names) > 0 {
+		q += " and EventData[Data[" + strings.Join(names, " or ") + "]]"
+	}
+	return q + "]"
+}
+
 // eventLog is EventLog with the program named, so a test can stand a script in for wevtutil.
 func eventLog(ctx context.Context, program string, exes []string, since time.Time) []Fault {
 	path, err := exec.LookPath(program)
@@ -48,8 +69,7 @@ func eventLog(ctx context.Context, program string, exes []string, since time.Tim
 	}
 	ctx, cancel := context.WithTimeout(ctx, eventLogTimeout)
 	defer cancel()
-	query := fmt.Sprintf("*[System[(Provider[@Name='%s'] or Provider[@Name='%s']) and TimeCreated[@SystemTime>='%s']]]",
-		runtimeProvider, appErrorProvider, since.UTC().Format("2006-01-02T15:04:05.000Z"))
+	query := eventQuery(exes, since)
 	cmd := exec.CommandContext(ctx, path, "qe", "Application", "/q:"+query, "/rd:true", "/c:20", "/f:xml", "/e:Events") // #nosec G204 -- fixed binary and fixed query; only the time is interpolated
 	hideWindow(cmd)
 	out, err := cmd.StdoutPipe()
