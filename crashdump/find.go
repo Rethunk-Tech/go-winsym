@@ -2,6 +2,7 @@ package crashdump
 
 import (
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,11 +47,11 @@ func Windows(crashDumps, temp string, exes []string, since time.Time) []Fault {
 		if exe == "" || filepath.Base(exe) != exe {
 			continue
 		}
-		matches, _ := filepath.Glob(filepath.Join(crashDumps, "*.dmp"))
-		for _, path := range matches {
-			if !werDump(filepath.Base(path), exe) {
+		for _, base := range dumpNames(crashDumps) {
+			if !werDump(base, exe) {
 				continue
 			}
+			path := filepath.Join(crashDumps, base)
 			if info, err := os.Stat(path); err != nil || !info.ModTime().After(since) {
 				continue
 			}
@@ -62,10 +63,29 @@ func Windows(crashDumps, temp string, exes []string, since time.Time) []Fault {
 	return out
 }
 
-func unityCrashDirs(temp string, since time.Time) []string {
-	matches, _ := filepath.Glob(filepath.Join(temp, "*", "*", "Crashes", "Crash_*"))
+// dumpNames lists the .dmp files in dir. The folder is read as given: a profile path holding [, * or ? would be
+// misread as a pattern by filepath.Glob.
+func dumpNames(dir string) []string {
+	entries, _ := os.ReadDir(dir)
 	var out []string
-	for _, dir := range matches {
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".dmp") {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+func unityCrashDirs(temp string, since time.Time) []string {
+	root, err := os.OpenRoot(temp)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = root.Close() }()
+	matches, _ := fs.Glob(root.FS(), "*/*/Crashes/Crash_*")
+	var out []string
+	for _, m := range matches {
+		dir := filepath.Join(temp, filepath.FromSlash(m))
 		if info, err := os.Stat(dir); err == nil && info.IsDir() && info.ModTime().After(since) {
 			out = append(out, dir)
 		}

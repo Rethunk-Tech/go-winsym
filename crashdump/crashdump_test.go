@@ -195,3 +195,26 @@ func TestWindowsIgnoresAnExeNameThatClimbsOutOfTheDumpFolder(t *testing.T) {
 		t.Fatalf("a dump outside the folder was read: %+v", got)
 	}
 }
+
+func TestWindowsReadsFoldersWhoseNamesHoldGlobCharacters(t *testing.T) {
+	t.Parallel()
+	local := filepath.Join(t.TempDir(), "Jo[hn]")
+	crashDumps := filepath.Join(local, "CrashDumps")
+	temp := filepath.Join(local, "Temp")
+	crash := filepath.Join(temp, "Co", "Prod", "Crashes", "Crash_1")
+	for _, d := range []string{crashDumps, crash} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dump := minidump(0x10, testModule{`C:\Mods\Old.dll`, 0, 0x100, nil})
+	if err := os.WriteFile(filepath.Join(crashDumps, "Game.exe.200.dmp"), dump, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(crash, "error.log"), []byte(unityLog), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := Windows(crashDumps, temp, []string{"Game.exe"}, time.Now().Add(-time.Hour)); len(got) != 2 {
+		t.Fatalf("faults = %+v, want the Unity folder's and the WER dump", got)
+	}
+}
