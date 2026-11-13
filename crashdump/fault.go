@@ -68,5 +68,5 @@ func baseName(p string) string {
 // IsSystemModule reports whether name is a library every crash passes through on its way down (ntdll, kernel32, the C
 // runtime, libc), never where one started.
 func IsSystemModule(name string) bool {
-	return systemModules[strings.ToLower(strings.TrimSuffix(name, ".dll"))] || systemModules[name]
+	return systemModules[strings.TrimSuffix(strings.ToLower(name), ".dll")] || systemModules[name]
 }

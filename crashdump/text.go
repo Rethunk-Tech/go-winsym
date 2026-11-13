@@ -32,7 +32,7 @@ func ParseCoredumpInfo(text string) (Fault, bool) {
 func firstFrame(text string, frame *regexp.Regexp) (Fault, bool) {
 	for line := range strings.SplitSeq(strings.ReplaceAll(text, "\r", ""), "\n") {
 		m := frame.FindStringSubmatch(line)
-		if m == nil || systemModules[strings.ToLower(strings.TrimSuffix(m[1], ".dll"))] || systemModules[m[1]] {
+		if m == nil || IsSystemModule(m[1]) {
 			continue
 		}
 		name := baseName(m[1])

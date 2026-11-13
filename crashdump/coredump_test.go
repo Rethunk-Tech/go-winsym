@@ -31,7 +31,7 @@ printf '%s' '`+coredumpInfo+`'
 }
 
 func TestIsSystemModule(t *testing.T) {
-	for name, want := range map[string]bool{"KERNEL32.dll": true, "ntdll": true, "libc.so.6": true, "CoolMod.dll": false} {
+	for name, want := range map[string]bool{"KERNEL32.dll": true, "KERNEL32.DLL": true, "ntdll": true, "libc.so.6": true, "CoolMod.dll": false} {
 		if IsSystemModule(name) != want {
 			t.Errorf("%s: want %v", name, want)
 		}
