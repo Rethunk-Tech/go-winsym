@@ -72,3 +72,11 @@ func TestKeyOrdersTheGUIDFieldsLikeWindows(t *testing.T) {
 		t.Errorf("Key = %s, want %s", got, want)
 	}
 }
+
+func TestParseCodeViewKeepsAnUppercasePDBExtension(t *testing.T) {
+	t.Parallel()
+	rec := []byte("RSDS0123456789abcdef\x01\x00\x00\x00C:\\b\\FOO.PDB\x00")
+	if cv, ok := parseCodeView(rec); !ok || cv.PDB != "FOO.PDB" {
+		t.Errorf("FOO.PDB: %+v, %v", cv, ok)
+	}
+}

@@ -19,11 +19,11 @@ const (
 )
 
 // pdbName is a PDB file name a server path and the cache can hold: no folder, no traversal.
-var pdbName = regexp.MustCompile(`^[A-Za-z0-9_.-]+\.pdb$`)
+var pdbName = regexp.MustCompile(`(?i)^[A-Za-z0-9_.-]+\.pdb$`)
 
 // CodeView is a module's RSDS debug record: the PDB it was linked with and that PDB's identity.
 type CodeView struct {
-	// PDB is a base name only and always matches ^[A-Za-z0-9_.-]+\.pdb$ when non-empty.
+	// PDB is a base name only and always matches ^[A-Za-z0-9_.-]+\.pdb$ (any case) when non-empty.
 	PDB  string
 	GUID [16]byte
 	Age  uint32
