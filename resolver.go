@@ -283,8 +283,9 @@ func (r *Resolver) prune() {
 	if limit == 0 {
 		limit = defaultCacheBytes
 	}
-	for _, e := range all {
-		if total <= limit {
+	for i, e := range all {
+		// Keep the newest PDB even when it alone exceeds the cap, or Name cannot open what it just fetched.
+		if total <= limit || i == len(all)-1 {
 			return
 		}
 		if root.Remove(e.path) == nil {

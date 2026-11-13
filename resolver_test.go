@@ -205,6 +205,21 @@ func TestPruneEvictsTheOldestPDBOverTheCap(t *testing.T) {
 	}
 }
 
+// A single fetched PDB larger than MaxCacheBytes is kept so Name can open it.
+func TestNameKeepsAFetchedPDBOverTheCacheCap(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	var requests atomic.Int32
+	srv := servePDB(t, cv, &requests)
+	r := &Resolver{HTTP: srv.Client(), Dir: t.TempDir(), Servers: []Server{{URL: srv.URL + "/"}}, MaxCacheBytes: 1, Wait: 10 * time.Second}
+	if name, _, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
+		t.Fatalf("%q %v", name, ok)
+	}
+	if _, err := os.Stat(filepath.Join(r.Dir, cv.PDB, cv.Key(), cv.PDB)); err != nil {
+		t.Fatalf("cached PDB missing: %v", err)
+	}
+}
+
 // Downloads of different PDBs run at most maxDownloads at a time.
 func TestDownloadsAreCapped(t *testing.T) {
 	t.Parallel()
