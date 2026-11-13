@@ -71,6 +71,39 @@ func TestResolverFetchesOnceAndCaches(t *testing.T) {
 	}
 }
 
+// A 200 that is not a PDB is not cached, so the next URL can still supply the file.
+func TestNameRejectsANonPDBBodyAndTriesTheNextURL(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	pdb := fixturePDBBytes(t)
+	html := []byte("<html>denied</html>")
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(html)
+	}))
+	t.Cleanup(bad.Close)
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/"+fixturePDB+"/"+cv.Key()+"/"+fixturePDB {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(pdb)
+	}))
+	t.Cleanup(good.Close)
+	r := &Resolver{Dir: t.TempDir(), Servers: []Server{{URL: bad.URL + "/"}, {URL: good.URL + "/"}}, Wait: 10 * time.Second}
+	for range 2 {
+		if name, _, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
+			t.Fatalf("%q %v", name, ok)
+		}
+	}
+	cached, err := os.ReadFile(filepath.Join(r.Dir, cv.PDB, cv.Key(), cv.PDB))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(cached) != string(pdb) {
+		t.Fatalf("cache held %d bytes, want the fixture PDB", len(cached))
+	}
+}
+
 // A nil HTTP client downloads with http.DefaultClient instead of panicking in the download goroutine.
 func TestResolverWithNoHTTPClientUsesTheDefault(t *testing.T) {
 	t.Parallel()

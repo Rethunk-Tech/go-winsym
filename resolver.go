@@ -220,7 +220,25 @@ func (r *Resolver) get(ctx context.Context, root *os.Root, url, pdb string) erro
 		_ = retry(func() error { return root.Remove(part) })
 		return err
 	}
+	if err := msfPart(root, part); err != nil {
+		_ = retry(func() error { return root.Remove(part) })
+		return err
+	}
 	return retry(func() error { return root.Rename(part, pdb) })
+}
+
+// msfPart rejects a download that is not an MSF 7.00 PDB so a 200 of HTML cannot occupy the cache path.
+func msfPart(root *os.Root, part string) error {
+	f, err := root.Open(part)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, len(msfMagic))
+	if _, err := io.ReadFull(f, head); err != nil || string(head) != msfMagic {
+		return errNotPDB
+	}
+	return nil
 }
 
 // prune deletes the least recently read PDBs until the cache is under its cap.
