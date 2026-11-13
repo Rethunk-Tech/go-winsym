@@ -155,6 +155,10 @@ func TestWindowsReadsOnlyDumpsNewerThanTheRun(t *testing.T) {
 	dump := minidump(0x10, testModule{`C:\Mods\Old.dll`, 0, 0x100, nil})
 	oldDump := filepath.Join(crashDumps, "Game.exe.100.dmp")
 	newDump := filepath.Join(crashDumps, "Game.exe.200.dmp")
+	padDump := filepath.Join(crashDumps, "Gamepad.exe.200.dmp")
+	if err := os.WriteFile(padDump, minidump(0x10, testModule{`C:\Mods\Pad.dll`, 0, 0x100, nil}), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	for _, p := range []string{oldDump, newDump} {
 		if err := os.WriteFile(p, dump, 0o600); err != nil {
 			t.Fatal(err)

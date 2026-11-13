@@ -46,8 +46,11 @@ func Windows(crashDumps, temp string, exes []string, since time.Time) []Fault {
 		if exe == "" || filepath.Base(exe) != exe {
 			continue
 		}
-		matches, _ := filepath.Glob(filepath.Join(crashDumps, stem(exe)+"*.dmp"))
+		matches, _ := filepath.Glob(filepath.Join(crashDumps, "*.dmp"))
 		for _, path := range matches {
+			if !werDump(filepath.Base(path), exe) {
+				continue
+			}
 			if info, err := os.Stat(path); err != nil || !info.ModTime().After(since) {
 				continue
 			}
@@ -111,3 +114,13 @@ func ReadDump(path string) (Fault, bool) {
 }
 
 func stem(name string) string { return strings.TrimSuffix(name, filepath.Ext(name)) }
+
+// werDump reports WER's ImageName.pid.dmp for exe. EqualFold so a Windows dump matches the caller's exe spelling.
+func werDump(base, exe string) bool {
+	const ext = ".dmp"
+	if len(base) < len(exe)+len(ext)+1 || !strings.EqualFold(base[len(base)-len(ext):], ext) {
+		return false
+	}
+	rest := base[:len(base)-len(ext)]
+	return strings.EqualFold(rest[:len(exe)], exe) && rest[len(exe)] == '.'
+}
