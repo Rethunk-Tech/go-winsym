@@ -110,8 +110,15 @@ func ParseEventLog(raw []byte, exes []string) []Fault {
 			continue
 		}
 		var e applicationEvent
-		if d.DecodeElement(&e, &start) != nil {
-			return out
+		if err := d.DecodeElement(&e, &start); err != nil {
+			// A field the struct cannot hold is skipped; a broken stream still stops.
+			if err == io.EOF {
+				return out
+			}
+			if _, ok := err.(*xml.SyntaxError); ok {
+				return out
+			}
+			continue
 		}
 		if f, ok := e.fault(exes); ok {
 			out = append(out, f)

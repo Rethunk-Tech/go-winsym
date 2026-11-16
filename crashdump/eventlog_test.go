@@ -50,6 +50,25 @@ func TestParseEventLogKeepsEventsBeforeATruncation(t *testing.T) {
 	}
 }
 
+func TestParseEventLogSkipsMalformedEvent(t *testing.T) {
+	event := func(id, module string) string {
+		return `<Event><System><Provider Name="Application Error"/><EventID>` + id +
+			`</EventID><TimeCreated SystemTime="2020-01-01T00:00:00Z"/></System><EventData>` +
+			`<Data>game.exe</Data><Data>x</Data><Data>x</Data><Data>` + module +
+			`</Data><Data>x</Data><Data>x</Data><Data>0xc0000005</Data><Data>0x10</Data>` +
+			`</EventData></Event>`
+	}
+	raw := []byte(event("1000", "First.dll") + event("not-a-number", "Bad.dll") + event("1000", "Second.dll"))
+	got := ParseEventLog(raw, []string{"game.exe"})
+	if len(got) != 2 || got[0].Module != "First.dll" || got[1].Module != "Second.dll" {
+		mods := make([]string, len(got))
+		for i, f := range got {
+			mods[i] = f.Module
+		}
+		t.Fatalf("modules=%v, want [First.dll Second.dll]", mods)
+	}
+}
+
 // testdata/wevtutil-win11.xml is wevtutil's answer to EventLog's own query on Windows 11 26H2 after a .NET
 // Framework program died of a NullReferenceException: real events quote attributes with ' and carry both providers.
 func TestEventLogReadsRealWevtutilOutput(t *testing.T) {
