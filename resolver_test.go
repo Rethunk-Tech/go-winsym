@@ -309,3 +309,60 @@ func TestNameLeavesASymlinkTargetAlone(t *testing.T) {
 		t.Fatalf("the target was touched: %v %v", info.ModTime(), err)
 	}
 }
+
+// A symlink where the cached PDB belongs is not a cache hit: the fetch runs and leaves a regular file in its place.
+func TestNameFetchesOverASymlinkedPDB(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	var requests atomic.Int32
+	srv := servePDB(t, cv, &requests)
+	outside := filepath.Join(t.TempDir(), "outside.pdb")
+	if err := os.WriteFile(outside, []byte("not the fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{HTTP: srv.Client(), Dir: t.TempDir(), Servers: []Server{{URL: srv.URL + "/"}}, Wait: 10 * time.Second}
+	dir := filepath.Join(r.Dir, cv.PDB, cv.Key())
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, cv.PDB)
+	if err := os.Symlink(outside, path); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	if name, _, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
+		t.Fatalf("%q %v after %d requests", name, ok, requests.Load())
+	}
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("the cache path is still a symlink: %v %v", info, err)
+	}
+	if b, err := os.ReadFile(outside); err != nil || string(b) != "not the fixture" {
+		t.Fatalf("the target outside the cache changed: %q %v", b, err)
+	}
+}
+
+// A key folder planted as a symlink to a folder outside the cache is not a key folder: prune must not reach through it
+// to delete the old miss marker it finds there.
+func TestPruneLeavesASymlinkedKeyFolderAlone(t *testing.T) {
+	t.Parallel()
+	outside := t.TempDir()
+	victim := filepath.Join(outside, missMarker)
+	if err := os.WriteFile(victim, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-missMaxAge - time.Hour)
+	if err := os.Chtimes(victim, old, old); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{Dir: t.TempDir()}
+	pdbDir := filepath.Join(r.Dir, "a.pdb")
+	if err := os.MkdirAll(pdbDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(pdbDir, "KEY1")); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	r.prune()
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatalf("prune removed a miss marker outside the cache: %v", err)
+	}
+}

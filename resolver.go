@@ -112,7 +112,7 @@ func refuseDowngrade(req *http.Request, via []*http.Request) error {
 }
 
 func isFile(path string) bool {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	return err == nil && info.Mode().IsRegular()
 }
 
@@ -297,23 +297,33 @@ func (r *Resolver) prune() {
 // pruneMisses removes expired miss markers, then the key and PDB folders left empty. An empty folder younger than
 // partMaxAge may belong to a download that has not written yet, so it stays.
 func (r *Resolver) pruneMisses() {
-	pdbs, _ := os.ReadDir(r.Dir)
+	root, err := os.OpenRoot(r.Dir)
+	if err != nil {
+		return
+	}
+	defer func() { _ = root.Close() }()
+	pdbs, _ := fs.ReadDir(root.FS(), ".")
 	for _, pdb := range pdbs {
 		if !pdb.IsDir() {
 			continue
 		}
-		pdbDir := filepath.Join(r.Dir, pdb.Name())
-		keys, _ := os.ReadDir(pdbDir)
+		pdbDir := pdb.Name()
+		keys, _ := fs.ReadDir(root.FS(), pdbDir)
 		for _, key := range keys {
 			keyDir := filepath.Join(pdbDir, key.Name())
-			marker := filepath.Join(keyDir, missMarker)
-			if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) > missMaxAge {
-				_ = os.Remove(marker)
+			// A key folder that is a symlink may point outside the cache, so neither it nor anything under it is touched.
+			info, err := root.Lstat(keyDir)
+			if err != nil || !info.IsDir() {
+				continue
 			}
-			if info, err := os.Stat(keyDir); err == nil && info.IsDir() && time.Since(info.ModTime()) > partMaxAge {
-				_ = os.Remove(keyDir)
+			marker := filepath.Join(keyDir, missMarker)
+			if info, err := root.Lstat(marker); err == nil && info.Mode().IsRegular() && time.Since(info.ModTime()) > missMaxAge {
+				_ = root.Remove(marker)
+			}
+			if info, err := root.Lstat(keyDir); err == nil && info.IsDir() && time.Since(info.ModTime()) > partMaxAge {
+				_ = root.Remove(keyDir)
 			}
 		}
-		_ = os.Remove(pdbDir)
+		_ = root.Remove(pdbDir)
 	}
 }
