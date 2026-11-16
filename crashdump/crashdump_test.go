@@ -181,6 +181,26 @@ func TestWindowsReadsOnlyDumpsNewerThanTheRun(t *testing.T) {
 	}
 }
 
+func TestWindowsMergesTheDumpBesideTheErrorLog(t *testing.T) {
+	t.Parallel()
+	local := t.TempDir()
+	crash := filepath.Join(local, "Temp", "Co", "Prod", "Crashes", "Crash_1")
+	if err := os.MkdirAll(crash, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(crash, "error.log"), []byte(unityLog), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dump := minidump(0x7ff800001234, testModule{`C:\Mods\CoolMod.dll`, 0x7ff800000000, 0x10000, nil})
+	if err := os.WriteFile(filepath.Join(crash, "crash.dmp"), dump, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := Windows(filepath.Join(local, "none"), filepath.Join(local, "Temp"), nil, time.Now().Add(-time.Hour))
+	if len(got) != 1 || got[0].Code != 0xc0000005 || !got[0].HasOffset || got[0].Offset != 0x1234 {
+		t.Fatalf("fault = %+v, want the dump's code and offset merged onto the log", got)
+	}
+}
+
 func TestWindowsIgnoresAnExeNameThatClimbsOutOfTheDumpFolder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
