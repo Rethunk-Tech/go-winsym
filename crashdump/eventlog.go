@@ -3,6 +3,7 @@ package crashdump
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -112,10 +113,11 @@ func ParseEventLog(raw []byte, exes []string) []Fault {
 		var e applicationEvent
 		if err := d.DecodeElement(&e, &start); err != nil {
 			// A field the struct cannot hold is skipped; a broken stream still stops.
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return out
 			}
-			if _, ok := err.(*xml.SyntaxError); ok {
+			var syn *xml.SyntaxError
+			if errors.As(err, &syn) {
 				return out
 			}
 			continue
