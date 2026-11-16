@@ -104,6 +104,35 @@ func TestNameRejectsANonPDBBodyAndTriesTheNextURL(t *testing.T) {
 	}
 }
 
+// A 200 of the MSF magic followed by junk is not a PDB, so it is discarded and the next URL supplies the file.
+func TestNameRejectsAStubMSFBodyAndTriesTheNextURL(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	pdb := fixturePDBBytes(t)
+	var goodHits atomic.Int32
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(append([]byte(msfMagic), "JUNK"...))
+	}))
+	t.Cleanup(stub.Close)
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/"+fixturePDB+"/"+cv.Key()+"/"+fixturePDB {
+			http.NotFound(w, r)
+			return
+		}
+		goodHits.Add(1)
+		_, _ = w.Write(pdb)
+	}))
+	t.Cleanup(good.Close)
+	r := &Resolver{Dir: t.TempDir(), Servers: []Server{{URL: stub.URL + "/"}, {URL: good.URL + "/"}}, Wait: 10 * time.Second}
+	if name, _, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
+		t.Fatalf("%q %v after %d good hits", name, ok, goodHits.Load())
+	}
+	cached, err := os.ReadFile(filepath.Join(r.Dir, cv.PDB, cv.Key(), cv.PDB))
+	if err != nil || string(cached) != string(pdb) {
+		t.Fatalf("cache held %d bytes: %v", len(cached), err)
+	}
+}
+
 // A nil HTTP client downloads with http.DefaultClient instead of panicking in the download goroutine.
 func TestResolverWithNoHTTPClientUsesTheDefault(t *testing.T) {
 	t.Parallel()
