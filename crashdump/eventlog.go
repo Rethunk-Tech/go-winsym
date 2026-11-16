@@ -116,8 +116,7 @@ func ParseEventLog(raw []byte, exes []string) []Fault {
 			if errors.Is(err, io.EOF) {
 				return out
 			}
-			var syn *xml.SyntaxError
-			if errors.As(err, &syn) {
+			if _, ok := errors.AsType[*xml.SyntaxError](err); ok {
 				return out
 			}
 			continue
