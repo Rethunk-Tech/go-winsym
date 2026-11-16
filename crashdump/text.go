@@ -32,11 +32,11 @@ func ParseCoredumpInfo(text string) (Fault, bool) {
 func firstFrame(text string, frame *regexp.Regexp) (Fault, bool) {
 	for line := range strings.SplitSeq(strings.ReplaceAll(text, "\r", ""), "\n") {
 		m := frame.FindStringSubmatch(line)
-		if m == nil || IsSystemModule(m[1]) {
+		if m == nil {
 			continue
 		}
 		name := baseName(m[1])
-		if name == "" {
+		if name == "" || IsSystemModule(name) {
 			continue
 		}
 		fault := Fault{Module: name}

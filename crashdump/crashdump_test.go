@@ -142,6 +142,26 @@ func TestCoredumpInfoNamesTheFirstNonSystemModule(t *testing.T) {
 	}
 }
 
+func TestCoredumpInfoSkipsAPathQualifiedSystemModule(t *testing.T) {
+	t.Parallel()
+	text := "#0  0x00007f12 raise (/lib/x86_64-linux-gnu/libc.so.6 + 0x1234)\n" +
+		"#1  0x00007f13 crash (libCoolNative.so + 0x100)\n"
+	got, ok := ParseCoredumpInfo(text)
+	if !ok || got.Module != "libCoolNative.so" {
+		t.Fatalf("fault = %+v, %v", got, ok)
+	}
+}
+
+func TestUnityErrorLogSkipsAPathQualifiedSystemModule(t *testing.T) {
+	t.Parallel()
+	text := "0x00007FF8A1B2C3D4 (C:\\Windows\\System32\\KERNELBASE.dll) RaiseException\n" +
+		"0x00007FF8A1B2C3D5 (CoolMod) DoThing\n"
+	got, ok := ParseUnityErrorLog(text)
+	if !ok || got.Module != "CoolMod" {
+		t.Fatalf("fault = %+v, %v", got, ok)
+	}
+}
+
 func TestWindowsReadsOnlyDumpsNewerThanTheRun(t *testing.T) {
 	t.Parallel()
 	local := t.TempDir()
