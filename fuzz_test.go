@@ -89,8 +89,8 @@ func FuzzUndecorate(f *testing.F) {
 	f.Add("?")
 	f.Fuzz(func(t *testing.T, s string) {
 		got := undecorate(s)
-		if strings.ContainsRune(got, 0) {
-			t.Fatalf("undecorate inserted a NUL: %q", got)
+		if !strings.ContainsRune(s, 0) && strings.ContainsRune(got, 0) {
+			t.Fatalf("undecorate inserted a NUL: %q -> %q", s, got)
 		}
 		if !strings.HasPrefix(s, "?") && got != s {
 			t.Fatalf("plain name mutated: %q -> %q", s, got)
