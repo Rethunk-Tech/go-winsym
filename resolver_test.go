@@ -342,6 +342,9 @@ func TestNameLeavesASymlinkTargetAlone(t *testing.T) {
 // A symlink where the cached PDB belongs is not a cache hit: the fetch runs and leaves a regular file in its place.
 func TestNameFetchesOverASymlinkedPDB(t *testing.T) {
 	t.Parallel()
+	if _, err := os.Stat(`Z:\proc\sys\kernel\osrelease`); err == nil {
+		t.Skip("wine does not apply windows symlink semantics")
+	}
 	cv := fixture(t)
 	var requests atomic.Int32
 	srv := servePDB(t, cv, &requests)
@@ -373,6 +376,9 @@ func TestNameFetchesOverASymlinkedPDB(t *testing.T) {
 // to delete the old miss marker it finds there.
 func TestPruneLeavesASymlinkedKeyFolderAlone(t *testing.T) {
 	t.Parallel()
+	if _, err := os.Stat(`Z:\proc\sys\kernel\osrelease`); err == nil {
+		t.Skip("wine does not apply windows symlink semantics")
+	}
 	outside := t.TempDir()
 	victim := filepath.Join(outside, missMarker)
 	if err := os.WriteFile(victim, nil, 0o600); err != nil {
