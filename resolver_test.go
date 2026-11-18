@@ -1,6 +1,7 @@
 package winsym
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -306,8 +307,147 @@ func TestRedirectsNeverLeaveHTTPS(t *testing.T) {
 	if err := refuseDowngrade(get("http://b.example/x"), []*http.Request{get("http://a.example/x")}); err != nil {
 		t.Errorf("an http redirect from http: %v", err)
 	}
+	via := make([]*http.Request, 10)
+	for i := range via {
+		via[i] = get("https://symbols.example/x")
+	}
+	if err := refuseDowngrade(get("https://other.example/x"), via); err == nil {
+		t.Error("an 11th redirect was followed")
+	}
 	if defaultClient.CheckRedirect == nil {
 		t.Error("the default client follows every redirect")
+	}
+}
+
+// Nil Servers still names a Unity PDB already in the cache, and an address below the first public stays unnamed.
+func TestNameUsesDefaultServersForACachedUnityPDB(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	r := &Resolver{Dir: t.TempDir(), Online: func() bool { return false }}
+	dir := filepath.Join(r.Dir, cv.PDB, cv.Key())
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, cv.PDB), fixturePDBBytes(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if name, off, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" || off != 0x1c {
+		t.Fatalf("%q +%#x %v", name, off, ok)
+	}
+	if _, _, ok := r.Name(t.Context(), cv, 0x10); ok {
+		t.Fatal("named a function below the first public")
+	}
+	empty := &Resolver{Servers: []Server{{URL: "https://example.invalid/"}}, Dir: ""}
+	if _, _, ok := empty.Name(t.Context(), cv, 0x101c); ok {
+		t.Fatal("named a function with no cache directory")
+	}
+}
+
+func TestNameGivesUpWhileTheDownloadContinues(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-release
+	}))
+	t.Cleanup(srv.Close)
+	r := &Resolver{HTTP: srv.Client(), Dir: t.TempDir(), Servers: []Server{{URL: srv.URL + "/"}}, Wait: 0}
+	t.Cleanup(func() {
+		r.mu.Lock()
+		done := r.inflight[filepath.Join(r.Dir, cv.PDB, cv.Key(), cv.PDB)]
+		r.mu.Unlock()
+		close(release)
+		if done != nil {
+			<-done
+		}
+	})
+	if _, _, ok := r.Name(t.Context(), cv, 0x101c); ok {
+		t.Fatal("named a symbol without waiting for the download")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	r.Wait = time.Minute
+	if _, _, ok := r.Name(ctx, cv, 0x101c); ok {
+		t.Fatal("named a symbol after the caller cancelled")
+	}
+}
+
+func TestAServerErrorIsNotRememberedAsAMiss(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	pdb := fixturePDBBytes(t)
+	for _, c := range []struct {
+		name string
+		fail func(http.ResponseWriter)
+	}{
+		{"500", func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) }},
+		{"declared size over the cap", func(w http.ResponseWriter) {
+			w.Header().Set("Content-Length", strconv.FormatInt(maxPDBBytes+1, 10))
+			w.WriteHeader(http.StatusOK)
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			var n atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if n.Add(1) == 1 {
+					c.fail(w)
+					return
+				}
+				_, _ = w.Write(pdb)
+			}))
+			t.Cleanup(srv.Close)
+			r := &Resolver{HTTP: srv.Client(), Dir: t.TempDir(), Servers: []Server{{URL: srv.URL + "/"}}, Wait: 10 * time.Second}
+			if _, _, ok := r.Name(t.Context(), cv, 0x101c); ok {
+				t.Fatal("named a symbol from a failed download")
+			}
+			if _, err := os.Stat(filepath.Join(r.Dir, cv.PDB, cv.Key(), missMarker)); !os.IsNotExist(err) {
+				t.Fatalf("miss recorded: %v", err)
+			}
+			if name, _, ok := r.Name(t.Context(), cv, 0x101c); !ok || name != "GfxDeviceD3D11::DrawBuffers" {
+				t.Fatalf("%q %v after retry", name, ok)
+			}
+		})
+	}
+	t.Run("connection refused", func(t *testing.T) {
+		t.Parallel()
+		r := &Resolver{Dir: t.TempDir(), Servers: []Server{{URL: "http://127.0.0.1:1/"}}, Wait: 10 * time.Second}
+		if _, _, ok := r.Name(t.Context(), cv, 0x101c); ok {
+			t.Fatal("named a symbol from an unreachable server")
+		}
+		if _, err := os.Stat(filepath.Join(r.Dir, cv.PDB, cv.Key(), missMarker)); !os.IsNotExist(err) {
+			t.Fatalf("miss recorded: %v", err)
+		}
+	})
+}
+
+func TestPruneDeletesAPartialDownloadLeftForAnHour(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{Dir: t.TempDir()}
+	part := filepath.Join(r.Dir, "a.pdb.part")
+	if err := os.WriteFile(part, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-partMaxAge - time.Hour)
+	if err := os.Chtimes(part, old, old); err != nil {
+		t.Fatal(err)
+	}
+	r.prune()
+	if _, err := os.Stat(part); !os.IsNotExist(err) {
+		t.Fatalf("abandoned .part remains: %v", err)
+	}
+}
+
+func TestNameDoesNotFetchWhenTheCachePathCannotBeCreated(t *testing.T) {
+	t.Parallel()
+	cv := fixture(t)
+	dir := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{Dir: dir, Servers: []Server{{URL: "https://example.invalid/"}}, Wait: 10 * time.Second}
+	if _, _, ok := r.Name(t.Context(), cv, 0x101c); ok {
+		t.Fatal("named a symbol without a cache")
 	}
 }
 
