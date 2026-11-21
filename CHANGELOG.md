@@ -6,6 +6,12 @@ Notable changes to `go-winsym`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `Resolver` validates a download as a sound MSF before caching it, rejects a 200 non-PDB body, stops following symlinks out of the cache, and keeps the newest PDB when it exceeds `MaxCacheBytes`.
+- `symsrv` accepts an upper-case `.PDB` extension.
+- `crashdump`: crash folders whose path holds glob characters are read, the WER glob no longer keeps dumps from exes sharing a prefix, the event log is filtered by exe so other crashes do not fill the cap, malformed event log entries are skipped, and system modules are skipped by base name in any case.
+
 ## [0.2.1] - 2026-11-07
 
 ### Fixed
